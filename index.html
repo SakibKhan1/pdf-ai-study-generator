@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>StudySage - PDF Summarizer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+    }
+    #summary, #flashcards, #quiz {
+      white-space: pre-wrap;
+      background: white;
+      padding: 1rem;
+      margin-top: 1rem;
+      border-radius: 6px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    button {
+      margin-top: 1rem;
+      margin-right: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>📄 StudySage PDF Summarizer</h1>
+  <input type="file" id="pdfInput" accept="application/pdf" />
+  <button onclick="uploadPDF()">Summarize PDF</button>
+
+  <div id="summary"></div>
+
+  <div>
+    <button id="flashcardBtn" style="display:none;" onclick="generateFlashcards()">🧠 Generate Flashcards</button>
+    <button id="quizBtn" style="display:none;" onclick="generateQuiz()">📝 Generate Quiz</button>
+  </div>
+
+  <div id="flashcards"></div>
+  <div id="quiz"></div>
+
+  <div id="usageCount" style="margin-top: 2rem; font-style: italic;"></div>
+
+  <script src="scripts.js"></script>
+</body>
+</html>
