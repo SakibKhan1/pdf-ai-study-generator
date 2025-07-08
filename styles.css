@@ -64,3 +64,49 @@ button:hover {
 input[type="file"] {
   margin: 10px 0;
 }
+
+.flashcard:hover {
+  cursor: pointer;
+}
+.flashcard-inner:hover {
+  cursor: pointer;
+}
+
+.quiz-option {
+  display: block;
+  margin: 0.4rem 0;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background-color: #eee;
+  color: #333;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.quiz-option:hover:not(:disabled) {
+  background-color: #ddd;
+}
+
+.quiz-option.correct {
+  background-color: #d4edda !important; /* light green */
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.quiz-option.incorrect {
+  background-color: #f8d7da !important; /* light red */
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.quiz-option:disabled {
+  opacity: 1;            /* Make it fully visible even when disabled */
+  cursor: default;
+}
+
+.quiz-feedback {
+  margin-top: 0.4rem;
+  font-weight: bold;
+}

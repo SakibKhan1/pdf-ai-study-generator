@@ -4,35 +4,207 @@
   <meta charset="UTF-8">
   <title>StudySage - PDF Summarizer</title>
   <link rel="stylesheet" href="styles.css">
+  <script defer src="scripts.js"></script>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      padding: 2rem;
+    }
+
+    h1 {
+      margin-bottom: 1.5rem;
+      font-size: 2rem;
+      color: #333;
+    }
+
+    .dropzone {
+      border: 2px dashed #ccc;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      background-color: #fdfdfd;
+      cursor: pointer;
+      transition: background-color 0.3s, border-color 0.3s;
+      margin-bottom: 20px;
+      width: 500px;
+      max-width: 90%;
+    }
+
+    .dropzone:hover {
+      background-color: #f7f7f7;
+      border-color: #888;
+    }
+
+    .dropzone.dragover {
+      background-color: #eaf6ff;
+      border-color: #007bff;
+    }
+
+    .pdf-icon {
+      width: 80px;
+      margin-bottom: 12px;
+    }
+
+    #fileName {
+      margin-top: 10px;
+      font-style: italic;
+      font-size: 0.9rem;
+      color: #444;
+    }
+
+    .card {
+      background-color: #fff;
+      padding: 1.5rem;
+      margin: 1rem auto;
+      width: 100%;
+      max-width: 1500px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    .close-btn {
+      float: right;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+.flashcard-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  padding: 20px 0;
+}
+
+.flashcard {
+  width: 100%;
+  max-width: 700px;
+  height: 200px;
+  perspective: 1000px;
+  margin: auto;
+}
+
+.flashcard-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+}
+
+.flashcard.flip .flashcard-inner {
+  transform: rotateY(180deg);
+}
+
+.flashcard-front,
+.flashcard-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background-color: #ffe5e5; /* 💡 light red */
+  backface-visibility: hidden;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.flashcard-back {
+  transform: rotateY(180deg);
+  background-color: #f0f0f0;
+}
+
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>📄 StudySage PDF Summarizer</h1>
-
-    <div class="upload-section">
-      <input type="file" id="pdfInput" accept="application/pdf" />
-      <button onclick="uploadPDF()">Summarize PDF</button>
-    </div>
-
-    <div id="summary" class="output-box"></div>
-
-    <div class="actions">
-      <button id="flashcardBtn" style="display:none;" onclick="generateFlashcards()">🧠 Generate Flashcards</button>
-      <button id="quizBtn" style="display:none;" onclick="generateQuiz()">📝 Generate Quiz</button>
-    </div>
-    <div id="flashcards" class="output-box" style="display: none;">
-      <span class="close-btn" onclick="closeBox('flashcards')">✖</span>
-      <div id="flashcardsContent"></div>
-    </div>
-
-    <div id="quiz" class="output-box" style="display: none;">
-      <span class="close-btn" onclick="closeBox('quiz')">✖</span>
-      <div id="quizContent"></div>
-    </div>
-
-    <div id="usageCount" class="usage-message"></div>
+  <h1>PDF AI Study Generator</h1>
+  <div id="dropzone" class="dropzone">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg" alt="PDF Icon" class="pdf-icon">
+    <p><strong>Drag and drop a PDF here</strong> or click to upload</p>
+    <input type="file" id="pdfInput" accept="application/pdf" hidden>
+    <div id="fileName"></div>
   </div>
 
-  <script src="scripts.js"></script>
+  <button onclick="uploadPDF()">Summarize PDF</button>
+
+  <div id="summary" class="card"></div>
+<div id="actionButtons" style="display:none; gap: 10px; margin-top: 1rem; display: none; justify-content: center;">
+  <button id="flashcardBtn" onclick="generateFlashcards()">Generate Flashcards</button>
+  <button id="quizBtn" onclick="generateQuiz()">Generate Quiz</button>
+</div>
+  <div id="flashcards" class="card" style="display:none;">
+    <span class="close-btn" onclick="this.parentElement.style.display='none'">×</span>
+    <h3>Flashcards</h3>
+    <div id="flashcardsContent" class="flashcard-grid"></div>
+  </div>
+
+  <div id="quiz" class="card" style="display:none;">
+    <span class="close-btn" onclick="this.parentElement.style.display='none'">×</span>
+    <h3>Quiz</h3>
+    <div id="quizContent"></div>
+  </div>
+
+  <div id="usageCount" style="margin-top: 20px; font-style: italic;"></div>
+
+  <script>
+    function triggerFileInput() {
+      document.getElementById("pdfInput").click();
+    }
+
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("pdfInput");
+    const fileNameDisplay = document.getElementById("fileName");
+
+    dropzone.addEventListener("click", triggerFileInput);
+
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("dragover");
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        fileNameDisplay.textContent = e.dataTransfer.files[0].name;
+        uploadPDF();
+      }
+    });
+
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) {
+    fileNameDisplay.textContent = fileInput.files[0].name;
+    // uploadPDF(); ← disabled so it doesn’t auto-summarize
+  }
+});
+
+    // Flip card on click
+    document.addEventListener("click", (e) => {
+      const card = e.target.closest(".flashcard");
+      if (card) {
+        card.classList.toggle("flip");
+      }
+    });
+  </script>
 </body>
 </html>
