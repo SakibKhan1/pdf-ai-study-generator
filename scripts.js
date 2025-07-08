@@ -1,6 +1,6 @@
 const DEV_MODE = true; //set to false to re-enable daily limits
 const MAX_USES_PER_DAY = 5;
-// if new day then the usage limit is reset using localstorage
+
 function getTodayUsage() {
   const today = new Date().toISOString().split("T")[0];
   let usage = JSON.parse(localStorage.getItem("studysage_usage") || "{}");
@@ -12,7 +12,7 @@ function getTodayUsage() {
 
   return usage;
 }
-// determines whether the user can use the app today or not 
+
 function canUseToday() {
   if (DEV_MODE) {
     updateUsageMessage();
@@ -27,7 +27,7 @@ function canUseToday() {
   updateUsageMessage();
   return true;
 }
-//updates the usage remaining
+
 function updateUsageMessage() {
   const usageElement = document.getElementById("usageCount");
 
@@ -45,7 +45,11 @@ function updateUsageMessage() {
     usageElement.innerText = "You've reached your daily limit of 5 summaries. Try again tomorrow!";
   }
 }
-//handles pdf upload and fetches summary from backend 
+
+function closeBox(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
 async function uploadPDF() {
   const input = document.getElementById('pdfInput');
   if (!input.files.length) return alert('Please select a PDF file');
@@ -57,10 +61,12 @@ async function uploadPDF() {
 
   const formData = new FormData();
   formData.append('pdf', input.files[0]);
-  //clear existing outputs and shows the loading message to make it organized
+
   document.getElementById('summary').innerText = 'Loading summary...';
-  document.getElementById('flashcards').innerText = '';
-  document.getElementById('quiz').innerText = '';
+  document.getElementById('flashcardsContent').innerText = '';
+  document.getElementById('quizContent').innerText = '';
+  document.getElementById('flashcards').style.display = 'none';
+  document.getElementById('quiz').style.display = 'none';
   document.getElementById('flashcardBtn').style.display = 'none';
   document.getElementById('quizBtn').style.display = 'none';
 
@@ -83,12 +89,15 @@ async function uploadPDF() {
     document.getElementById('summary').innerText = 'Request failed: ' + err.message;
   }
 }
-//handles creating flashcards after summarizing is done 
+
 async function generateFlashcards() {
   const summaryText = document.getElementById("summary").innerText;
   if (!summaryText) return;
 
-  document.getElementById("flashcards").innerText = "Generating flashcards...";
+  const flashcardsBox = document.getElementById("flashcards");
+  const flashcardsContent = document.getElementById("flashcardsContent");
+  flashcardsBox.style.display = "block";
+  flashcardsContent.innerText = "Generating flashcards...";
 
   try {
     const res = await fetch("http://localhost:5000/flashcards", {
@@ -98,17 +107,20 @@ async function generateFlashcards() {
     });
 
     const data = await res.json();
-    document.getElementById("flashcards").innerText = data.flashcards || "Error: " + data.error;
+    flashcardsContent.innerText = data.flashcards || "Error: " + data.error;
   } catch (err) {
-    document.getElementById("flashcards").innerText = "Request failed: " + err.message;
+    flashcardsContent.innerText = "Request failed: " + err.message;
   }
 }
-//same as flashcards but for a quiz instead after summary is done
+
 async function generateQuiz() {
   const summaryText = document.getElementById("summary").innerText;
   if (!summaryText) return;
 
-  document.getElementById("quiz").innerText = "Generating quiz...";
+  const quizBox = document.getElementById("quiz");
+  const quizContent = document.getElementById("quizContent");
+  quizBox.style.display = "block";
+  quizContent.innerText = "Generating quiz...";
 
   try {
     const res = await fetch("http://localhost:5000/quiz", {
@@ -118,9 +130,9 @@ async function generateQuiz() {
     });
 
     const data = await res.json();
-    document.getElementById("quiz").innerText = data.quiz || "Error: " + data.error;
+    quizContent.innerText = data.quiz || "Error: " + data.error;
   } catch (err) {
-    document.getElementById("quiz").innerText = "Request failed: " + err.message;
+    quizContent.innerText = "Request failed: " + err.message;
   }
 }
 

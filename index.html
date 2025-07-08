@@ -3,45 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <title>StudySage - PDF Summarizer</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 2rem;
-      background-color: #f4f4f4;
-    }
-    #summary, #flashcards, #quiz {
-      white-space: pre-wrap;
-      background: white;
-      padding: 1rem;
-      margin-top: 1rem;
-      border-radius: 6px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    button {
-      margin-top: 1rem;
-      margin-right: 1rem;
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>📄 StudySage PDF Summarizer</h1>
-  <input type="file" id="pdfInput" accept="application/pdf" />
-  <button onclick="uploadPDF()">Summarize PDF</button>
+  <div class="container">
+    <h1>📄 StudySage PDF Summarizer</h1>
 
-  <div id="summary"></div>
+    <div class="upload-section">
+      <input type="file" id="pdfInput" accept="application/pdf" />
+      <button onclick="uploadPDF()">Summarize PDF</button>
+    </div>
 
-  <div>
-    <button id="flashcardBtn" style="display:none;" onclick="generateFlashcards()">🧠 Generate Flashcards</button>
-    <button id="quizBtn" style="display:none;" onclick="generateQuiz()">📝 Generate Quiz</button>
+    <div id="summary" class="output-box"></div>
+
+    <div class="actions">
+      <button id="flashcardBtn" style="display:none;" onclick="generateFlashcards()">🧠 Generate Flashcards</button>
+      <button id="quizBtn" style="display:none;" onclick="generateQuiz()">📝 Generate Quiz</button>
+    </div>
+    <div id="flashcards" class="output-box" style="display: none;">
+      <span class="close-btn" onclick="closeBox('flashcards')">✖</span>
+      <div id="flashcardsContent"></div>
+    </div>
+
+    <div id="quiz" class="output-box" style="display: none;">
+      <span class="close-btn" onclick="closeBox('quiz')">✖</span>
+      <div id="quizContent"></div>
+    </div>
+
+    <div id="usageCount" class="usage-message"></div>
   </div>
-
-  <div id="flashcards"></div>
-  <div id="quiz"></div>
-
-  <div id="usageCount" style="margin-top: 2rem; font-style: italic;"></div>
 
   <script src="scripts.js"></script>
 </body>
