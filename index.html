@@ -140,8 +140,11 @@
   </div>
 
   <button onclick="uploadPDF()">Summarize PDF</button>
+<div id="loadingSpinner" style="display:none; margin-top: 10px;">
+  <div class="spinner"></div>
+</div>
 
-  <div id="summary" class="card"></div>
+<div id="summary" class="card" style="display: none;"></div>
 <div id="actionButtons" style="display:none; gap: 10px; margin-top: 1rem; display: none; justify-content: center;">
   <button id="flashcardBtn" onclick="generateFlashcards()">Generate Flashcards</button>
   <button id="quizBtn" onclick="generateQuiz()">Generate Quiz</button>

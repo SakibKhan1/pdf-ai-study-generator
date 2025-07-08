@@ -62,12 +62,15 @@ async function uploadPDF() {
   const formData = new FormData();
   formData.append('pdf', input.files[0]);
 
-  document.getElementById('summary').innerText = 'Loading summary...';
+  document.getElementById('summary').style.display = 'none';
   document.getElementById('flashcardsContent').innerText = '';
   document.getElementById('quizContent').innerText = '';
   document.getElementById('flashcards').style.display = 'none';
   document.getElementById('quiz').style.display = 'none';
   document.getElementById('actionButtons').style.display = 'none';
+
+  const spinner = document.getElementById('loadingSpinner');
+  spinner.style.display = 'block';
 
   try {
     const res = await fetch('http://localhost:5000/upload', {
@@ -76,17 +79,22 @@ async function uploadPDF() {
     });
 
     const data = await res.json();
+    spinner.style.display = 'none'; // 🔴 Hide spinner
 
     if (data.summary) {
-      document.getElementById('summary').innerText = data.summary;
+      const summaryBox = document.getElementById('summary');
+      summaryBox.style.display = 'block';
+      summaryBox.innerText = data.summary;
       document.getElementById('actionButtons').style.display = 'flex';
     } else {
       document.getElementById('summary').innerText = 'Error: ' + data.error;
     }
   } catch (err) {
+    spinner.style.display = 'none'; // 🔴 Hide spinner
     document.getElementById('summary').innerText = 'Request failed: ' + err.message;
   }
 }
+
 
 async function generateFlashcards() {
   const summaryText = document.getElementById("summary").innerText;
@@ -106,44 +114,36 @@ async function generateFlashcards() {
 
     const data = await res.json();
 
-    const flashcards = (data.flashcards || "Error: " + data.error)
-      .split(/\n\n+|\n---\n|---|\r\n\r\n+/)
-      .filter(f => f.trim());
+    if (!data.flashcards) {
+      flashcardsContent.innerText = "No flashcards returned.";
+      return;
+    }
 
-    const cardsHTML = flashcards.slice(0, 10).map(card => {
-      const [q, a] = card.split(/Answer:\s*/);
-      if (!q || !a) return "";
+    let flashcardsJSON;
+    try {
+      flashcardsJSON = JSON.parse(data.flashcards);
+    } catch (err) {
+      flashcardsContent.innerText = "Invalid flashcard format.";
+      return;
+    }
 
-      const cleaned = q
-        .replace(/Flashcard\s*\d+\s*:?/i, "")
-        .replace(/Question[:\-]?\s*/i, "")
-        .replace(/\*\*/g, "")
-        .trim();
-
-      const answer = a
-        .replace(/\*\*/g, "")
-        .replace(/^Answer[:\-]?\s*/i, "")
-        .trim();
-
-      if (!cleaned || !answer || answer === "**" || answer.toLowerCase().includes("no answer")) return "";
-
-      return `
-        <div class="flashcard">
-          <div class="flashcard-inner">
-            <div class="flashcard-front">${cleaned}</div>
-            <div class="flashcard-back">${answer}</div>
-          </div>
+    const cardsHTML = flashcardsJSON.map(({ question, answer }) => `
+      <div class="flashcard">
+        <div class="flashcard-inner">
+          <div class="flashcard-front">${question}</div>
+          <div class="flashcard-back">${answer}</div>
         </div>
-      `;
-    }).join("");
+      </div>
+    `).join("");
 
-    flashcardsContent.innerHTML = cardsHTML || "No valid flashcards generated.";
+    flashcardsContent.innerHTML = cardsHTML;
     document.getElementById("flashcards").scrollIntoView({ behavior: "smooth" });
 
   } catch (err) {
     flashcardsContent.innerText = "Request failed: " + err.message;
   }
 }
+
 
 async function generateQuiz() {
   const summaryText = document.getElementById("summary").innerText;
@@ -162,46 +162,33 @@ async function generateQuiz() {
     });
 
     const data = await res.json();
-    const quizText = data.quiz || "";
+    let parsed;
 
-    const rawBlocks = quizText.trim().split(/\n\s*\n/);
+    try {
+      parsed = JSON.parse(data.quiz);
+    } catch (jsonErr) {
+      quizContent.innerText = "Invalid quiz format. Please try again.";
+      return;
+    }
 
-    let questions = rawBlocks
-      .map(block => {
-        const lines = block.trim().split("\n");
-        const hasQuestion = lines[0]?.match(/^\d+\./);
-        const hasOptions = lines.filter(line => /^[A-D]\)/.test(line)).length >= 4;
-        const hasAnswer = lines.some(line => /Correct Answer:/i.test(line));
-        return (hasQuestion && hasOptions && hasAnswer) ? block : null;
-      })
-      .filter(Boolean)
-      .slice(0, 5); // up to 5 valid questions
-
-    if (!questions.length) {
+    if (!Array.isArray(parsed) || parsed.length === 0) {
       quizContent.innerText = "No valid questions were generated.";
       return;
     }
 
-    const quizHTML = questions.map((block, i) => {
-      const lines = block.trim().split("\n");
-      const questionText = lines[0].replace(/^\d+\.\s*/, "").trim();
-      const options = lines.filter(line => /^[A-D]\)/.test(line));
-      const correctLine = lines.find(line => /Correct Answer:/i.test(line));
-      const correctLetter = correctLine ? correctLine.trim().split(":")[1].trim().charAt(0).toUpperCase() : null;
-
-      const optionsHTML = options.map(option => {
-        const letter = option.trim().charAt(0);
-        const text = option.trim().slice(3).trim();
+    const quizHTML = parsed.slice(0, 5).map((q, i) => {
+      const optionsHTML = q.choices.map((choice, idx) => {
+        const letter = String.fromCharCode(65 + idx); // A, B, C, D
         return `
-          <button class="quiz-option" onclick="checkAnswer(this, '${letter}', '${correctLetter}', ${i})">
-            ${letter}) ${text}
+          <button class="quiz-option" onclick="checkAnswer(this, '${letter}', '${q.correct}', ${i})">
+            ${letter}) ${choice}
           </button>
         `;
       }).join("");
 
       return `
         <div class="quiz-question">
-          <p><strong>${i + 1}. ${questionText}</strong></p>
+          <p><strong>${i + 1}. ${q.question}</strong></p>
           <div class="quiz-options" id="quiz-options-${i}">
             ${optionsHTML}
           </div>
@@ -217,6 +204,7 @@ async function generateQuiz() {
     quizContent.innerText = "Request failed: " + err.message;
   }
 }
+
 
 
 function checkAnswer(button, selected, correct, index) {

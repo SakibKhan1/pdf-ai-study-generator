@@ -53,14 +53,31 @@ def generate_flashcards():
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You generate educational flashcards in Q&A format."},
-                {"role": "user", "content": f"Generate 5 flashcards from the following text:\n{text}"}
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an educational assistant. Generate exactly 5 flashcards "
+                        "from the user's provided academic text. "
+                        "Each flashcard should be in this JSON format:\n\n"
+                        "[\n"
+                        "  {\"question\": \"...\", \"answer\": \"...\"},\n"
+                        "  {\"question\": \"...\", \"answer\": \"...\"},\n"
+                        "  ... (5 total)\n"
+                        "]\n\n"
+                        "Ensure the response is valid JSON. Do not include any explanation or extra text — only output the JSON array."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"Create 5 flashcards from this content:\n\n{text}"
+                }
             ]
         )
-        flashcards = response.choices[0].message.content
+        flashcards = response.choices[0].message.content.strip()
         return jsonify({"flashcards": flashcards})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
 #generates the quizk from the AI text like flashcards
 @app.route("/quiz", methods=["POST"])
 def generate_quiz():
@@ -73,14 +90,34 @@ def generate_quiz():
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You generate multiple-choice quizzes from academic material."},
-                {"role": "user", "content": f"Create 3 multiple-choice quiz questions from this text:\n{text}"}
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful assistant that generates multiple-choice quiz questions. "
+                        "Return exactly 5 questions in valid JSON format. Each question should have: "
+                        "`question`, `choices` (list of 4 strings), and `correct` (the correct letter A, B, C, or D). "
+                        "Example format:\n"
+                        "[\n"
+                        "  {\n"
+                        '    "question": "What is the capital of France?",\n'
+                        '    "choices": ["Paris", "Berlin", "London", "Rome"],\n'
+                        '    "correct": "A"\n'
+                        "  },\n"
+                        "  ...\n"
+                        "]"
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"Generate a multiple-choice quiz from the following text:\n{text}"
+                }
             ]
         )
-        quiz = response.choices[0].message.content
-        return jsonify({"quiz": quiz})
+        quiz_json = response.choices[0].message.content.strip()
+        return jsonify({"quiz": quiz_json})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 #validation for if backend running properly 
 @app.route("/")
 def home():
