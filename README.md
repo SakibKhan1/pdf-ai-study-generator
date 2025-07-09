@@ -58,8 +58,7 @@ The following **required** functionality is completed:
 
 ---
 
-<h2>🎥 Live Demo</h2>
-
+<h2>Live Demo</h2>
 <p align="center">
-<img src="Media/Demo.gif" width="1000" height="1000" alt="Demo">
+  <img src="Media/Demo.gif" alt="App demo" width="800" height="450">
 </p>
