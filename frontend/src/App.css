@@ -1,0 +1,259 @@
+/*Body styling*/
+body {
+  font-family: Arial, sans-serif;
+  background-color: #eeeeee;
+  margin: 20px;
+}
+
+/*Page title*/
+h1 {
+  font-size: 38px;
+  color: #333;
+}
+
+/*Button style*/
+button {
+  margin: 10px 5px;
+  padding: 8px 12px;
+  background-color: #444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/*Button hover*/
+button:hover {
+  background-color: #222;
+}
+
+/*Output container*/
+.output-box {
+  position: relative;
+  padding: 15px;
+  margin: 15px auto;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  white-space: pre-wrap;
+  width: 90%;
+  max-width: 800px;
+  text-align: center;
+}
+
+/*Close button*/
+.close-btn {
+  float: right;
+  cursor: pointer;
+  font-weight: bold;
+  color: #888;
+  font-size: 18px;
+}
+
+/*Close hover*/
+.close-btn:hover {
+  color: #000;
+}
+
+/*Usage text*/
+#usageCount {
+  margin-bottom: 10px;
+  color: #666;
+  font-style: italic;
+}
+
+/*Summary box*/
+#summary {
+  margin: 0 auto;
+  text-align: left;
+  padding: 12px;
+  white-space: pre-wrap;
+  width: 90%;
+  max-width: 800px;
+  background-color: #fff;
+  border-left: 5px solid #444;
+  border-radius: 4px;
+}
+
+/*File input*/
+input[type="file"] {
+  margin: 10px 0;
+}
+
+/*Flashcard grid*/
+.flashcard-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+}
+
+/*Flashcard shell*/
+.flashcard {
+  width: 300px;
+  height: 200px;
+  perspective: 1000px;
+}
+
+/*Flashcard inner*/
+.flashcard-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+}
+
+/*Card layout*/
+.card {
+  background: white;
+  padding: 1.5rem;
+  margin-top: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  max-width: 800px;
+  width: 90%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/*Dropzone box*/
+.dropzone {
+  width: 750px;
+  height: 370px;
+  border: 2px dashed #aaa;
+  border-radius: 10px;
+  background-color: #fff;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  cursor: pointer;
+  padding: 1rem;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+/*Dropzone hover*/
+.dropzone:hover {
+  background-color: #f7f7f7;
+  border-color: #888;
+}
+
+/*Dropzone dragover*/
+.dropzone.dragover {
+  background-color: #eaf6ff;
+  border-color: #007bff;
+}
+
+/*PDF icon*/
+.pdf-icon {
+  width: 120px;
+  margin-bottom: 0.75rem;
+}
+
+/*File name text*/
+#fileName {
+  margin-top: 10px;
+  font-style: italic;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+/*Flip effect*/
+.flashcard.flip .flashcard-inner {
+  transform: rotateY(180deg);
+}
+
+/*Flashcard front/back*/
+.flashcard-front,
+.flashcard-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background-color: #dfe232;
+  backface-visibility: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1.5;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+/*Flashcard back*/
+.flashcard-back {
+  transform: rotateY(180deg);
+  background-color: #f0f0f0;
+  font-weight: normal;
+}
+
+/*Quiz option button*/
+.quiz-option {
+  display: block;
+  margin: 0.4rem 0;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background-color: #eee;
+  color: #333;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+/*Quiz hover*/
+.quiz-option:hover:not(:disabled) {
+  background-color: #ddd;
+}
+
+/*Quiz correct*/
+.quiz-option.correct {
+  background-color: #c8f7c5;
+  border: 2px solid #2ecc71;
+}
+
+/*Quiz wrong*/
+.quiz-option.wrong {
+  background-color: #f8d7da;
+  border: 2px solid #e74c3c;
+}
+
+/*Quiz disabled*/
+.quiz-option:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/*Quiz feedback*/
+.quiz-feedback {
+  margin-top: 0.4rem;
+  font-weight: bold;
+}
+
+/*Loading spinner*/
+.spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+  margin: auto;
+}
+
+/*Spinner animation*/
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
