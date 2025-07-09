@@ -54,3 +54,10 @@ The following **required** functionality is completed:
 - ✅ **Fallback logic** included to extract partial JSON if GPT output includes noise  
 - ✅ **Minimalist UI** with soft card styling, centered content, and intuitive buttons  
 - ✅ Clearly marked footer with **credits and OpenAI attribution**
+
+
+---
+
+## Live Demo
+
+![App Demo](Media/Demo.gif)
