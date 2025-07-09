@@ -58,6 +58,8 @@ The following **required** functionality is completed:
 
 ---
 
-## Live Demo
+<h2>🎥 Live Demo</h2>
 
-![App Demo](Media/Demo.gif)
+<p align="center">
+  <img src="Media/Demo.gif" alt="App Demo" width="600">
+</p>
