@@ -2,6 +2,8 @@
 
 **PDF AI Study Generator** is a web app that transforms uploaded PDFs into AI-powered study materials including summaries, flashcards, and quizzes. Designed for fast, focused learning, the app makes studying from dense lecture slides, textbook chapters, or research papers more interactive and efficient.
 
+> ⚠️ **Recommended Limit:** For best performance, uploaded PDFs should be **30 pages or fewer**. Longer PDFs may exceed OpenAI's processing limits or result in slower responses.
+
 Built with a modern full-stack architecture, the app uses GPT-3.5 to process document content and deliver accurate, structured outputs. It features a clean UI, responsive design, and intelligent caching to minimize unnecessary API usage.
 
 Check out the live app here 👉: https://pdf-ai-study-generator.vercel.app/
