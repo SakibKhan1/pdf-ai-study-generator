@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
-import openai
+from openai import OpenAI
 import fitz
 import json
 import hashlib
@@ -12,14 +12,14 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-#Caches 
+# Caches
 summary_cache = {}
 flashcard_cache = {}
 quiz_cache = {}
 
-#JSON fallback extraction 
+# JSON fallback extraction
 def extract_json_array(text):
     try:
         start = text.find('[')
@@ -30,11 +30,11 @@ def extract_json_array(text):
         print("JSON extraction fallback failed:", e)
     return []
 
-#Get file hash for caching 
+# Get file hash for caching
 def compute_pdf_hash(file_bytes):
     return hashlib.sha256(file_bytes).hexdigest()
 
-#PDF Upload and summary 
+# PDF Upload and summary
 @app.route("/upload", methods=["POST"])
 def upload_pdf():
     file = request.files.get("pdf")
@@ -65,20 +65,22 @@ def upload_pdf():
             "PDF content:\n" + text
         )
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1500
         )
+        print("📄 RAW COMPLETION:\n", response)  # <-- ADD THIS LINE
 
-        summary = response['choices'][0]['message']['content'].strip()
+
+        summary = response.choices[0].message.content.strip()
         summary_cache[file_hash] = summary
         return jsonify({"summary": summary})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-#Flashcard Generation 
+# Flashcard Generation
 @app.route("/flashcards", methods=["POST"])
 def generate_flashcards():
     data = request.get_json()
@@ -98,13 +100,13 @@ def generate_flashcards():
             "Return a JSON array of these objects ONLY. Do not add explanations or formatting.\n\nText:\n" + text
         )
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=700
         )
 
-        content = response['choices'][0]['message']['content']
+        content = response.choices[0].message.content
         print("🧠 Flashcard Raw Output:\n", content)
 
         try:
@@ -121,7 +123,7 @@ def generate_flashcards():
     except Exception as e:
         return jsonify({"error": f"Flashcard generation failed: {str(e)}"}), 500
 
-#Quiz Generation 
+# Quiz Generation
 @app.route("/quiz", methods=["POST"])
 def generate_quiz():
     data = request.get_json()
@@ -142,13 +144,13 @@ def generate_quiz():
             "[{\"question\": ..., \"choices\": [...], \"correct\": \"A\"}, ...]\n\nText:\n" + text
         )
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800
         )
 
-        content = response['choices'][0]['message']['content']
+        content = response.choices[0].message.content
         print("🧠 Quiz Raw Output:\n", content)
 
         try:
