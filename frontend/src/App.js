@@ -1,6 +1,9 @@
 import React, { useState, useRef } from 'react';
 import './App.css';
 
+// Backend URL for deployed API
+const BACKEND_URL = "https://pdf-ai-study-generator.onrender.com";
+
 // Main app function
 function App() {
   // State management
@@ -49,7 +52,7 @@ function App() {
     formData.append('pdf', file);
 
     try {
-      const res = await fetch('http://localhost:5000/upload', {
+      const res = await fetch(`${BACKEND_URL}/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -69,7 +72,7 @@ function App() {
 
     setFlashcardLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/flashcards', {
+      const res = await fetch(`${BACKEND_URL}/flashcards`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: summary }),
@@ -100,7 +103,7 @@ function App() {
 
     setQuizLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/quiz', {
+      const res = await fetch(`${BACKEND_URL}/quiz`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: summary }),
