@@ -13,7 +13,7 @@ Frontend: React.js + Vercel Hosting
 > 
 ---
 
-## ⚙️ Built With
+## 🔧 Built With
 
 - **React** – Frontend user interface built with functional components and hooks  
 - **Flask** – Lightweight Python backend server for routing and API integration  
