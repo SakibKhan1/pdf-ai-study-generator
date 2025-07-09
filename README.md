@@ -60,5 +60,5 @@ The following **required** functionality is completed:
 
 <h2>Live Demo</h2>
 <p align="center">
-  <img src="Media/Demo.gif" alt="App demo" width="1000" height="600">
+  <img src="Media/Demo.gif" alt="App demo" width="1200" height="800">
 </p>
