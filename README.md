@@ -4,7 +4,6 @@
 
 Built with a modern full-stack architecture, the app uses GPT-3.5 to process document content and deliver accurate, structured outputs. It features a clean UI, responsive design, and intelligent caching to minimize unnecessary API usage.
 
-Check out the live app here 👉: https://pdf-ai-study-generator.vercel.app/
 
 Backend: Flask + OpenAI API  
 Frontend: React.js + Vercel Hosting  
