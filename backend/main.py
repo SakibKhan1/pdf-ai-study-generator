@@ -10,11 +10,18 @@ import hashlib
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=[
-    "https://pdf-ai-study-generator-2.vercel.app",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-])
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "https://pdf-ai-study-generator-2.vercel.app",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"],
+        "supports_credentials": False
+    }
+})
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
