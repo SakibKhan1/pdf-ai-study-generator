@@ -8,8 +8,6 @@ Built with a modern full-stack architecture, the app uses GPT-3.5 to process doc
 Backend: Flask + OpenAI API  
 Frontend: React.js + Vercel Hosting  
 
-> ⚠️ **Recommended Limit:** For best performance, uploaded PDFs should be **30 pages or fewer**. Longer PDFs may exceed OpenAI's processing limits or result in slower responses.
-
 Check it out here: https://pdf-ai-study-generator-2.vercel.app/
 ---
 
