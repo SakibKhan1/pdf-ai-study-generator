@@ -1,8 +1,57 @@
 import React, { useState, useRef } from 'react';
 import './App.css';
 
-// Backend URL for deployed API
-const BACKEND_URL = "https://pdf-ai-study-generator.onrender.com";
+/**
+ * Backend URL resolution:
+ * - If REACT_APP_BACKEND_URL is set, use it.
+ * - Else, if running on localhost, default to http://localhost:5000
+ * - Else, use your deployed URL.
+ * 
+ * Tip: If you add "proxy": "http://localhost:5000" in package.json and want to use
+ * relative paths in dev (no CORS), set REACT_APP_BACKEND_URL to "" in a local .env file.
+ */
+const computedDefault = window.location.hostname === 'localhost'
+  ? 'http://localhost:5000'
+  : 'https://pdf-ai-study-generator-2.vercel.app';
+
+const envUrl = (process.env.REACT_APP_BACKEND_URL || '').trim();
+// If env var is the empty string, we’ll use relative paths (works with CRA proxy).
+const BACKEND_URL = envUrl === '' ? '' : (envUrl || computedDefault);
+
+console.log('BACKEND_URL =', BACKEND_URL || '(relative paths via dev proxy)');
+
+// Small helper: build URL whether we’re absolute or relative
+const makeUrl = (path) => `${BACKEND_URL}${path.startsWith('/') ? path : `/${path}`}`;
+
+// Small helper: fetch with timeout + JSON + nicer errors
+async function apiFetch(path, options = {}, { timeoutMs = 45000 } = {}) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(makeUrl(path), { ...options, signal: controller.signal });
+    let data;
+    const text = await res.text();
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      // Non-JSON response
+      throw new Error(`Unexpected response format (${res.status}): ${text?.slice(0, 200) || 'empty'}`);
+    }
+    if (!res.ok) {
+      // Bubble up backend error if present
+      const msg = data?.error || data?.message || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    return data;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Is the backend running?');
+    }
+    throw err;
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 // Main app function
 function App() {
@@ -36,7 +85,7 @@ function App() {
 
   // Submit PDF for summary
   const submitPDFForSummary = async () => {
-    const file = inputRef.current.files[0];
+    const file = inputRef.current?.files?.[0];
     if (!file) return;
 
     setFileName(file.name);
@@ -49,17 +98,18 @@ function App() {
     setQuizResults({});
 
     const formData = new FormData();
+    // Backend expects "pdf"
     formData.append('pdf', file);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/upload`, {
+      const data = await apiFetch('/upload', {
         method: 'POST',
         body: formData,
       });
-      const data = await res.json();
       setSummary(data.summary || 'No summary returned.');
-      console.log("Summary loaded:", data.fromCache ? "from cache" : "fresh");
+      console.log('Summary loaded:', data.fromCache ? 'from cache' : 'fresh');
     } catch (err) {
+      console.error('Summary error:', err);
       setSummary('Request failed: ' + err.message);
     } finally {
       setLoading(false);
@@ -72,25 +122,23 @@ function App() {
 
     setFlashcardLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/flashcards`, {
+      const data = await apiFetch('/flashcards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: summary }),
       });
-
-      const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      setFlashcards(data.flashcards);
+      setFlashcards(data.flashcards || []);
       setFlashcardsVisible(true);
 
       setTimeout(() => {
         flashcardRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
 
-      console.log("Flashcards loaded:", data.fromCache ? "from cache" : "fresh");
+      console.log('Flashcards loaded:', data.fromCache ? 'from cache' : 'fresh');
     } catch (err) {
-      console.error("Flashcard error:", err);
+      console.error('Flashcard error:', err);
       setFlashcards([{ question: 'Error', answer: err.message }]);
     } finally {
       setFlashcardLoading(false);
@@ -103,16 +151,14 @@ function App() {
 
     setQuizLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/quiz`, {
+      const data = await apiFetch('/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: summary }),
       });
-
-      const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      setQuiz(data.quiz);
+      setQuiz(data.quiz || []);
       setQuizResults({});
       setQuizVisible(true);
 
@@ -120,9 +166,9 @@ function App() {
         quizRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
 
-      console.log("Quiz loaded:", data.fromCache ? "from cache" : "fresh");
+      console.log('Quiz loaded:', data.fromCache ? 'from cache' : 'fresh');
     } catch (err) {
-      console.error("Quiz error:", err);
+      console.error('Quiz error:', err);
       setQuiz([{ question: 'Error: ' + err.message, choices: [], correct: 'A' }]);
     } finally {
       setQuizLoading(false);
@@ -154,7 +200,7 @@ function App() {
           onChange={handleFileChange}
         />
         {fileName && (
-          <div style={{ marginTop: "12px", fontStyle: "italic", fontSize: "0.9rem", color: "#444" }}>
+          <div style={{ marginTop: '12px', fontStyle: 'italic', fontSize: '0.9rem', color: '#444' }}>
             Uploaded: <strong>{fileName}</strong>
           </div>
         )}
@@ -272,7 +318,7 @@ function App() {
             PDF AI Study Generator is a tool that converts your uploaded PDFs into AI-generated summaries, flashcards, and quizzes for fast learning.
           </p>
           <p style={{ fontSize: '0.9rem', color: '#666' }}>
-            © 2025 Sakib Khan · Powered by OpenAI's GPT API
+            © 2025 Sakib Khan · Powered by OpenAI&apos;s GPT API
           </p>
         </div>
       </footer>
