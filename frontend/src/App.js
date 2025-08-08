@@ -45,7 +45,7 @@ async function apiFetch(path, options = {}, { timeoutMs = 45000 } = {}) {
     return data;
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error('Request timed out. Is the backend running?');
+      throw new Error('Request timed out. PDF might be too big to process, please try again with a smaller PDF please.');
     }
     throw err;
   } finally {
