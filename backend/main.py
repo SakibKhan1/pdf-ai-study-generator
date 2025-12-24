@@ -2,11 +2,12 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
-import fitz
+import fitz  # PyMuPDF
 import json
 import hashlib
 from openai import OpenAI
 
+# ================== Setup ==================
 load_dotenv()
 
 app = Flask(__name__)
@@ -41,27 +42,36 @@ summary_cache = {}
 flashcard_cache = {}
 quiz_cache = {}
 
-# ========= Helpers =========
-def compute_hash(data: bytes):
+# ================== Helpers ==================
+def compute_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
-def chunk_text(text, max_chars=4000):
+def chunk_text(text: str, max_chars: int = 2500):
     return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
 
-def extract_json_array(text):
+def preflight_ok():
+    return ("", 200)
+
+def extract_json_array(text: str):
     try:
         start = text.find("[")
         end = text.rfind("]")
         if start != -1 and end != -1:
             return json.loads(text[start:end + 1])
-    except:
+    except Exception:
         pass
     return []
 
-def preflight_ok():
-    return ("", 200)
+def get_response_text(resp) -> str:
+    """
+    Safely extract text from OpenAI Responses API output
+    """
+    try:
+        return resp.output[0].content[0].text
+    except Exception:
+        return ""
 
-# ========= Health =========
+# ================== Health ==================
 @app.get("/")
 def health():
     return {"status": "ok"}, 200
@@ -73,7 +83,7 @@ def diag():
         "model": MODEL_NAME
     }
 
-# ========= Upload / Summary =========
+# ================== Upload / Summary ==================
 @app.route("/upload", methods=["POST", "OPTIONS"])
 def upload_pdf():
     if request.method == "OPTIONS":
@@ -90,6 +100,7 @@ def upload_pdf():
         return jsonify({"summary": summary_cache[file_hash]})
 
     try:
+        # Extract PDF text
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         text = "".join(page.get_text() for page in doc)
 
@@ -111,13 +122,14 @@ def upload_pdf():
                 max_output_tokens=400
             )
 
-            part = resp.output_text.strip()
+            part = get_response_text(resp).strip()
             if part:
                 partials.append(part)
 
         if not partials:
             return jsonify({"error": "Failed to generate summary"}), 500
 
+        # Combine summaries
         final_resp = client.responses.create(
             model=MODEL_NAME,
             input=(
@@ -127,14 +139,16 @@ def upload_pdf():
             max_output_tokens=800
         )
 
-        summary = final_resp.output_text.strip()
+        summary = get_response_text(final_resp).strip()
         summary_cache[file_hash] = summary
+
         return jsonify({"summary": summary})
 
     except Exception as e:
+        print("❌ Summary error:", e)
         return jsonify({"error": str(e)}), 500
 
-# ========= Flashcards =========
+# ================== Flashcards ==================
 @app.route("/flashcards", methods=["POST", "OPTIONS"])
 def generate_flashcards():
     if request.method == "OPTIONS":
@@ -142,6 +156,7 @@ def generate_flashcards():
 
     data = request.get_json(silent=True) or {}
     text = data.get("text", "")
+
     if not text:
         return jsonify({"error": "No input text provided"}), 400
 
@@ -160,15 +175,17 @@ def generate_flashcards():
             max_output_tokens=700
         )
 
-        content = resp.output_text
+        content = get_response_text(resp)
         cards = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
+
         flashcard_cache[key] = cards
         return jsonify({"flashcards": cards})
 
     except Exception as e:
+        print("❌ Flashcard error:", e)
         return jsonify({"error": str(e)}), 500
 
-# ========= Quiz =========
+# ================== Quiz ==================
 @app.route("/quiz", methods=["POST", "OPTIONS"])
 def generate_quiz():
     if request.method == "OPTIONS":
@@ -176,6 +193,7 @@ def generate_quiz():
 
     data = request.get_json(silent=True) or {}
     text = data.get("text", "")
+
     if not text:
         return jsonify({"error": "No input text provided"}), 400
 
@@ -194,14 +212,16 @@ def generate_quiz():
             max_output_tokens=800
         )
 
-        content = resp.output_text
+        content = get_response_text(resp)
         quiz = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
+
         quiz_cache[key] = quiz
         return jsonify({"quiz": quiz})
 
     except Exception as e:
+        print("❌ Quiz error:", e)
         return jsonify({"error": str(e)}), 500
 
-# ========= Entrypoint =========
+# ================== Entrypoint ==================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
