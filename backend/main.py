@@ -120,14 +120,14 @@ def upload_pdf():
                 "Summarize the following section of a document clearly and concisely. "
                 "Preserve key ideas and important details.\n\n" + chunk
             )
-
-            response = client.chat.completions.create(
+            response = client.responses.create(
                 model=MODEL_NAME,
-                messages=[{"role": "user", "content": chunk_prompt}],
-                max_completion_tokens=400
+                input=chunk_prompt,
+                max_output_tokens=400
             )
 
-            part = response.choices[0].message.content.strip()
+            part = response.output_text.strip()
+
             if part:
                 partial_summaries.append(part)
 
