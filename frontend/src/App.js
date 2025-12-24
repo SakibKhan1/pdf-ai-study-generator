@@ -1,26 +1,18 @@
 import React, { useState, useRef } from 'react';
 import './App.css';
 
-/**
- * Backend URL resolution:
- * - If REACT_APP_BACKEND_URL is set, use it.
- * - Else, if running on localhost, default to http://localhost:5000
- * - Else, use your deployed URL.
- * 
- * Tip: If you add "proxy": "http://localhost:5000" in package.json and want to use
- * relative paths in dev (no CORS), set REACT_APP_BACKEND_URL to "" in a local .env file.
- */
+
 const computedDefault = window.location.hostname === 'localhost'
   ? 'http://localhost:5000'
   : 'https://pdf-ai-study-generator-2.vercel.app';
 
 const envUrl = (process.env.REACT_APP_BACKEND_URL || '').trim();
-// If env var is the empty string, we’ll use relative paths (works with CRA proxy).
+// If env var is the empty string, we’ll use relative paths 
 const BACKEND_URL = envUrl === '' ? '' : (envUrl || computedDefault);
 
 console.log('BACKEND_URL =', BACKEND_URL || '(relative paths via dev proxy)');
 
-// Small helper: build URL whether we’re absolute or relative
+
 const makeUrl = (path) => `${BACKEND_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
 // Small helper: fetch with timeout + JSON + nicer errors
