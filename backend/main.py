@@ -53,8 +53,15 @@ def chunk_text(text: str, max_chars: int = 5000):
     return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
 
 def get_response_text(resp) -> str:
-    return (resp.output_text or "").strip()
-
+    try:
+        for item in resp.output:
+            if hasattr(item, "content"):
+                for block in item.content:
+                    if hasattr(block, "text"):
+                        return block.text
+    except Exception:
+        pass
+    return ""
 
 def extract_json_array(text: str):
     try:
