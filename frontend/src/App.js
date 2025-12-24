@@ -265,7 +265,7 @@ function App() {
               <div className="quiz-question" key={i}>
                 <p><strong>{i + 1}. {q.question}</strong></p>
                 <div className="quiz-options">
-                  {q.choices.map((choice, j) => {
+                  {Array.isArray(q.choices) && q.choices.map((choice, j) => {
                     const letter = String.fromCharCode(65 + j);
                     const isAnswered = quizResults[i] !== undefined;
 
