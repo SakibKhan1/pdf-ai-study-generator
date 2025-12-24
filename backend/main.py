@@ -120,7 +120,7 @@ def upload_pdf():
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=1500
+            max_completion_tokens=1500
         )
         summary = response.choices[0].message.content.strip()
         summary_cache[file_hash] = summary
@@ -156,7 +156,7 @@ def generate_flashcards():
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=700
+            max_completion_tokens=700
         )
 
         content = response.choices[0].message.content
@@ -202,7 +202,7 @@ def generate_quiz():
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=800
+            max_completion_tokens=800
         )
 
         content = response.choices[0].message.content
