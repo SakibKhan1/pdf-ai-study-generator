@@ -52,8 +52,13 @@ def diag():
     }, 200
 
 # ========= OpenAI =========
+# ========= OpenAI =========
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+print("Backend booted")
+print("OpenAI model in use:", MODEL_NAME)
+
 
 # ========= In-memory caches =========
 summary_cache = {}
