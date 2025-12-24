@@ -5,6 +5,7 @@ import os
 import fitz  # PyMuPDF
 import json
 import hashlib
+import traceback
 from openai import OpenAI
 
 # ================== Setup ==================
@@ -12,7 +13,18 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# ========= CORS =========
+# ================== Debug Logger ==================
+def debug_log(label, value):
+    print("\n" + "=" * 20)
+    print(label)
+    print("-" * 20)
+    try:
+        print(value)
+    except Exception:
+        print("<<UNPRINTABLE>>")
+    print("=" * 20 + "\n")
+
+# ================== CORS ==================
 DEBUG_ALLOW_ALL = os.getenv("DEBUG_ALLOW_ALL_ORIGINS", "0") == "1"
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
 
@@ -30,14 +42,18 @@ else:
         }
     })
 
-# ========= OpenAI =========
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# ================== OpenAI ==================
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-print("🚀 Backend booted")
-print("🤖 OpenAI model in use:", MODEL_NAME)
+debug_log("OPENAI KEY EXISTS", bool(OPENAI_KEY))
+debug_log("MODEL NAME", MODEL_NAME)
 
-# ========= In-memory caches =========
+client = OpenAI(api_key=OPENAI_KEY)
+
+print("🚀 Backend booted")
+
+# ================== In-memory caches ==================
 summary_cache = {}
 flashcard_cache = {}
 quiz_cache = {}
@@ -58,18 +74,34 @@ def extract_json_array(text: str):
         end = text.rfind("]")
         if start != -1 and end != -1:
             return json.loads(text[start:end + 1])
-    except Exception:
-        pass
+    except Exception as e:
+        debug_log("JSON EXTRACT ERROR", e)
     return []
 
 def get_response_text(resp) -> str:
     """
-    Safely extract text from OpenAI Responses API output
+    DO NOT TRUST RESPONSE SHAPE — LOG EVERYTHING
     """
-    try:
-        return resp.output[0].content[0].text
-    except Exception:
-        return ""
+    debug_log("RAW RESPONSE OBJECT", resp)
+
+    if hasattr(resp, "output"):
+        debug_log("RESP.OUTPUT", resp.output)
+
+        if resp.output:
+            block = resp.output[0]
+            debug_log("RESP.OUTPUT[0]", block)
+
+            if hasattr(block, "content"):
+                debug_log("BLOCK.CONTENT", block.content)
+
+                if block.content:
+                    piece = block.content[0]
+                    debug_log("BLOCK.CONTENT[0]", piece)
+
+                    if hasattr(piece, "text"):
+                        return piece.text
+
+    return ""
 
 # ================== Health ==================
 @app.get("/")
@@ -79,7 +111,7 @@ def health():
 @app.get("/diag")
 def diag():
     return {
-        "has_key": bool(os.getenv("OPENAI_API_KEY")),
+        "has_key": bool(OPENAI_KEY),
         "model": MODEL_NAME
     }
 
@@ -89,29 +121,38 @@ def upload_pdf():
     if request.method == "OPTIONS":
         return preflight_ok()
 
-    file = request.files.get("pdf")
-    if not file:
-        return jsonify({"error": "No PDF uploaded"}), 400
-
-    file_bytes = file.read()
-    file_hash = compute_hash(file_bytes)
-
-    if file_hash in summary_cache:
-        return jsonify({"summary": summary_cache[file_hash]})
-
     try:
-        # Extract PDF text
+        file = request.files.get("pdf")
+        if not file:
+            return jsonify({"error": "No PDF uploaded"}), 400
+
+        file_bytes = file.read()
+        file_hash = compute_hash(file_bytes)
+
+        debug_log("PDF BYTES SIZE", len(file_bytes))
+        debug_log("PDF HASH", file_hash)
+
+        if file_hash in summary_cache:
+            return jsonify({"summary": summary_cache[file_hash]})
+
+        # Extract text
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         text = "".join(page.get_text() for page in doc)
+
+        debug_log("EXTRACTED TEXT LENGTH", len(text))
+        debug_log("TEXT PREVIEW", text[:500])
 
         if not text.strip():
             return jsonify({"error": "PDF text is empty"}), 400
 
         chunks = chunk_text(text)
+        debug_log("TOTAL CHUNKS", len(chunks))
+
         partials = []
 
         for i, chunk in enumerate(chunks):
-            print(f"🧩 Summarizing chunk {i + 1}/{len(chunks)}")
+            debug_log(f"CHUNK {i+1} LENGTH", len(chunk))
+            debug_log(f"CHUNK {i+1} PREVIEW", chunk[:300])
 
             resp = client.responses.create(
                 model=MODEL_NAME,
@@ -122,11 +163,20 @@ def upload_pdf():
                 max_output_tokens=400
             )
 
-            part = get_response_text(resp).strip()
+            part = get_response_text(resp)
+            debug_log("EXTRACTED PART RAW", repr(part))
+
+            part = part.strip()
             if part:
                 partials.append(part)
 
+        debug_log("PARTIAL SUMMARIES COUNT", len(partials))
+
         if not partials:
+            debug_log("SUMMARY FAILURE", {
+                "chunks": len(chunks),
+                "partials": partials
+            })
             return jsonify({"error": "Failed to generate summary"}), 500
 
         # Combine summaries
@@ -140,12 +190,14 @@ def upload_pdf():
         )
 
         summary = get_response_text(final_resp).strip()
-        summary_cache[file_hash] = summary
+        debug_log("FINAL SUMMARY", summary)
 
+        summary_cache[file_hash] = summary
         return jsonify({"summary": summary})
 
     except Exception as e:
-        print("❌ Summary error:", e)
+        print("❌ EXCEPTION IN /upload")
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 # ================== Flashcards ==================
@@ -154,17 +206,17 @@ def generate_flashcards():
     if request.method == "OPTIONS":
         return preflight_ok()
 
-    data = request.get_json(silent=True) or {}
-    text = data.get("text", "")
-
-    if not text:
-        return jsonify({"error": "No input text provided"}), 400
-
-    key = compute_hash(text.encode())
-    if key in flashcard_cache:
-        return jsonify({"flashcards": flashcard_cache[key]})
-
     try:
+        data = request.get_json(silent=True) or {}
+        text = data.get("text", "")
+
+        if not text:
+            return jsonify({"error": "No input text provided"}), 400
+
+        key = compute_hash(text.encode())
+        if key in flashcard_cache:
+            return jsonify({"flashcards": flashcard_cache[key]})
+
         resp = client.responses.create(
             model=MODEL_NAME,
             input=(
@@ -176,13 +228,15 @@ def generate_flashcards():
         )
 
         content = get_response_text(resp)
-        cards = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
+        debug_log("FLASHCARD RAW TEXT", content)
 
+        cards = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
         flashcard_cache[key] = cards
         return jsonify({"flashcards": cards})
 
     except Exception as e:
-        print("❌ Flashcard error:", e)
+        print("❌ EXCEPTION IN /flashcards")
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 # ================== Quiz ==================
@@ -191,17 +245,17 @@ def generate_quiz():
     if request.method == "OPTIONS":
         return preflight_ok()
 
-    data = request.get_json(silent=True) or {}
-    text = data.get("text", "")
-
-    if not text:
-        return jsonify({"error": "No input text provided"}), 400
-
-    key = compute_hash(text.encode())
-    if key in quiz_cache:
-        return jsonify({"quiz": quiz_cache[key]})
-
     try:
+        data = request.get_json(silent=True) or {}
+        text = data.get("text", "")
+
+        if not text:
+            return jsonify({"error": "No input text provided"}), 400
+
+        key = compute_hash(text.encode())
+        if key in quiz_cache:
+            return jsonify({"quiz": quiz_cache[key]})
+
         resp = client.responses.create(
             model=MODEL_NAME,
             input=(
@@ -213,13 +267,15 @@ def generate_quiz():
         )
 
         content = get_response_text(resp)
-        quiz = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
+        debug_log("QUIZ RAW TEXT", content)
 
+        quiz = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
         quiz_cache[key] = quiz
         return jsonify({"quiz": quiz})
 
     except Exception as e:
-        print("❌ Quiz error:", e)
+        print("❌ EXCEPTION IN /quiz")
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 # ================== Entrypoint ==================
