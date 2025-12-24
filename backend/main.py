@@ -6,23 +6,12 @@ import fitz  # PyMuPDF
 import json
 import hashlib
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
 
 # ================== Setup ==================
 load_dotenv()
-
 app = Flask(__name__)
-
-# ================== Debug Logger ==================
-def debug_log(label, value):
-    print("\n" + "=" * 20)
-    print(label)
-    print("-" * 20)
-    try:
-        print(value)
-    except Exception:
-        print("<<UNPRINTABLE>>")
-    print("=" * 20 + "\n")
 
 # ================== CORS ==================
 DEBUG_ALLOW_ALL = os.getenv("DEBUG_ALLOW_ALL_ORIGINS", "0") == "1"
@@ -46,14 +35,12 @@ else:
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-debug_log("OPENAI KEY EXISTS", bool(OPENAI_KEY))
-debug_log("MODEL NAME", MODEL_NAME)
-
 client = OpenAI(api_key=OPENAI_KEY)
 
 print("🚀 Backend booted")
+print("🤖 Model:", MODEL_NAME)
 
-# ================== In-memory caches ==================
+# ================== Caches ==================
 summary_cache = {}
 flashcard_cache = {}
 quiz_cache = {}
@@ -62,11 +49,19 @@ quiz_cache = {}
 def compute_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
-def chunk_text(text: str, max_chars: int = 2500):
+def chunk_text(text: str, max_chars: int = 5000):
     return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
 
-def preflight_ok():
-    return ("", 200)
+def get_response_text(resp) -> str:
+    try:
+        for item in resp.output:
+            if hasattr(item, "content"):
+                for block in item.content:
+                    if hasattr(block, "text"):
+                        return block.text
+    except Exception:
+        pass
+    return ""
 
 def extract_json_array(text: str):
     try:
@@ -74,34 +69,9 @@ def extract_json_array(text: str):
         end = text.rfind("]")
         if start != -1 and end != -1:
             return json.loads(text[start:end + 1])
-    except Exception as e:
-        debug_log("JSON EXTRACT ERROR", e)
+    except Exception:
+        pass
     return []
-
-def get_response_text(resp) -> str:
-    """
-    DO NOT TRUST RESPONSE SHAPE — LOG EVERYTHING
-    """
-    debug_log("RAW RESPONSE OBJECT", resp)
-
-    if hasattr(resp, "output"):
-        debug_log("RESP.OUTPUT", resp.output)
-
-        if resp.output:
-            block = resp.output[0]
-            debug_log("RESP.OUTPUT[0]", block)
-
-            if hasattr(block, "content"):
-                debug_log("BLOCK.CONTENT", block.content)
-
-                if block.content:
-                    piece = block.content[0]
-                    debug_log("BLOCK.CONTENT[0]", piece)
-
-                    if hasattr(piece, "text"):
-                        return piece.text
-
-    return ""
 
 # ================== Health ==================
 @app.get("/")
@@ -110,17 +80,11 @@ def health():
 
 @app.get("/diag")
 def diag():
-    return {
-        "has_key": bool(OPENAI_KEY),
-        "model": MODEL_NAME
-    }
+    return {"has_key": bool(OPENAI_KEY), "model": MODEL_NAME}
 
 # ================== Upload / Summary ==================
-@app.route("/upload", methods=["POST", "OPTIONS"])
+@app.route("/upload", methods=["POST"])
 def upload_pdf():
-    if request.method == "OPTIONS":
-        return preflight_ok()
-
     try:
         file = request.files.get("pdf")
         if not file:
@@ -129,9 +93,6 @@ def upload_pdf():
         file_bytes = file.read()
         file_hash = compute_hash(file_bytes)
 
-        debug_log("PDF BYTES SIZE", len(file_bytes))
-        debug_log("PDF HASH", file_hash)
-
         if file_hash in summary_cache:
             return jsonify({"summary": summary_cache[file_hash]})
 
@@ -139,77 +100,98 @@ def upload_pdf():
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         text = "".join(page.get_text() for page in doc)
 
-        debug_log("EXTRACTED TEXT LENGTH", len(text))
-        debug_log("TEXT PREVIEW", text[:500])
-
         if not text.strip():
             return jsonify({"error": "PDF text is empty"}), 400
 
-        chunks = chunk_text(text)
-        debug_log("TOTAL CHUNKS", len(chunks))
-
-        partials = []
-
-        for i, chunk in enumerate(chunks):
-            debug_log(f"CHUNK {i+1} LENGTH", len(chunk))
-            debug_log(f"CHUNK {i+1} PREVIEW", chunk[:300])
+        # ================== FAST PATH ==================
+        if len(text) < 25_000:
+            print("⚡ Using single-call summary")
 
             resp = client.responses.create(
                 model=MODEL_NAME,
                 input=(
-                    "Summarize this section of a document clearly and concisely, "
-                    "preserving important details:\n\n" + chunk
+                    "Summarize this section in 5-6 sentences. "
+                    "Focus only on the main ideas. "
+                    "Do NOT include examples, lists, or headings. "
+                    "Use plain text only:\n\n"
+
+                    + text
                 ),
-                max_output_tokens=400
+                max_output_tokens=300
             )
 
-            part = get_response_text(resp)
-            debug_log("EXTRACTED PART RAW", repr(part))
+            summary = get_response_text(resp).strip()
+            summary_cache[file_hash] = summary
+            return jsonify({"summary": summary})
 
-            part = part.strip()
-            if part:
-                partials.append(part)
+        # ================== LARGE PDF PATH ==================
+        print("🐢 Large PDF detected — using parallel chunking")
 
-        debug_log("PARTIAL SUMMARIES COUNT", len(partials))
+        chunks = chunk_text(text)
+        partials = []
+
+        def summarize_chunk(chunk):
+            resp = client.responses.create(
+                model=MODEL_NAME,
+                input=(
+                    "Summarize this section in 2–3 short sentences. "
+                    "Focus only on the main ideas. "
+                    "Do NOT include examples, lists, headings, or definitions. "
+                    "Use plain text only:\n\n" + chunk
+                ),
+                max_output_tokens=120
+            )
+            return get_response_text(resp).strip()
+
+        total = len(chunks)
+        completed = 0
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [executor.submit(summarize_chunk, c) for c in chunks]
+
+            for future in as_completed(futures):
+                completed += 1
+                try:
+                    result = future.result()
+                    if result:
+                        partials.append(result)
+                except Exception as e:
+                    print("❌ Chunk failed:", e)
+
+                print(f"🧩 Completed {completed}/{total} chunks")
+
 
         if not partials:
-            debug_log("SUMMARY FAILURE", {
-                "chunks": len(chunks),
-                "partials": partials
-            })
             return jsonify({"error": "Failed to generate summary"}), 500
 
-        # Combine summaries
+        # Combine partial summaries
         final_resp = client.responses.create(
             model=MODEL_NAME,
             input=(
-                "Combine the following partial summaries into one clear, cohesive final summary:\n\n"
+                "Combine the following summaries into ONE concise overview of the document. "
+                "Limit the final summary to about 150–250 words total. "
+                "Focus on high-level concepts only. "
+                "Do NOT include headings, bullet points, or formatting. "
+                "Use plain text paragraphs:\n\n"
                 + "\n\n".join(partials)
             ),
-            max_output_tokens=800
+            max_output_tokens=350
         )
 
         summary = get_response_text(final_resp).strip()
-        debug_log("FINAL SUMMARY", summary)
-
         summary_cache[file_hash] = summary
         return jsonify({"summary": summary})
 
     except Exception as e:
-        print("❌ EXCEPTION IN /upload")
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 # ================== Flashcards ==================
-@app.route("/flashcards", methods=["POST", "OPTIONS"])
+@app.route("/flashcards", methods=["POST"])
 def generate_flashcards():
-    if request.method == "OPTIONS":
-        return preflight_ok()
-
     try:
-        data = request.get_json(silent=True) or {}
+        data = request.get_json() or {}
         text = data.get("text", "")
-
         if not text:
             return jsonify({"error": "No input text provided"}), 400
 
@@ -228,27 +210,20 @@ def generate_flashcards():
         )
 
         content = get_response_text(resp)
-        debug_log("FLASHCARD RAW TEXT", content)
-
         cards = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
         flashcard_cache[key] = cards
         return jsonify({"flashcards": cards})
 
     except Exception as e:
-        print("❌ EXCEPTION IN /flashcards")
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 # ================== Quiz ==================
-@app.route("/quiz", methods=["POST", "OPTIONS"])
+@app.route("/quiz", methods=["POST"])
 def generate_quiz():
-    if request.method == "OPTIONS":
-        return preflight_ok()
-
     try:
-        data = request.get_json(silent=True) or {}
+        data = request.get_json() or {}
         text = data.get("text", "")
-
         if not text:
             return jsonify({"error": "No input text provided"}), 400
 
@@ -267,14 +242,11 @@ def generate_quiz():
         )
 
         content = get_response_text(resp)
-        debug_log("QUIZ RAW TEXT", content)
-
         quiz = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
         quiz_cache[key] = quiz
         return jsonify({"quiz": quiz})
 
     except Exception as e:
-        print("❌ EXCEPTION IN /quiz")
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 

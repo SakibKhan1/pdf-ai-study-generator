@@ -94,10 +94,15 @@ function App() {
     formData.append('pdf', file);
 
     try {
-      const data = await apiFetch('/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const data = await apiFetch(
+        '/upload',
+        {
+          method: 'POST',
+          body: formData,
+        },
+        { timeoutMs: 120000 } // 2 minutes
+      );
+
       setSummary(data.summary || 'No summary returned.');
       console.log('Summary loaded:', data.fromCache ? 'from cache' : 'fresh');
     } catch (err) {
@@ -204,6 +209,11 @@ function App() {
       </div>
 
       {loading && <div className="spinner" style={{ marginTop: '10px' }}></div>}
+      {loading && (
+  <p style={{ textAlign: 'center', color: '#666', marginTop: '10px' }}>
+    Processing PDF… Large files may take up to a minute.
+  </p>
+)}
 
       {/*Summary output*/}
       {summary && (
