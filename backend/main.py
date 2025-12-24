@@ -2,10 +2,10 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
-from openai import OpenAI
 import fitz
 import json
 import hashlib
+from openai import OpenAI
 
 load_dotenv()
 
@@ -13,41 +13,21 @@ app = Flask(__name__)
 
 # ========= CORS =========
 DEBUG_ALLOW_ALL = os.getenv("DEBUG_ALLOW_ALL_ORIGINS", "0") == "1"
-
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
-ALLOWED_ORIGINS = {
-    FRONTEND_ORIGIN,
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-}
-VERCEL_PREVIEW_REGEX = r"^https://.*\.vercel\.app$"
 
 if DEBUG_ALLOW_ALL:
-    CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"]}})
+    CORS(app)
 else:
     CORS(app, resources={
         r"/*": {
-            "origins": list(ALLOWED_ORIGINS) + [VERCEL_PREVIEW_REGEX],
-            "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["*", "Content-Type", "Authorization", "X-Requested-With"],
-            "expose_headers": ["*"],
-            "supports_credentials": False,
+            "origins": [
+                FRONTEND_ORIGIN,
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                r"^https://.*\.vercel\.app$",
+            ]
         }
     })
-
-# ========= Health / Diag =========
-@app.get("/")
-def health():
-    return {"status": "ok"}, 200
-
-@app.get("/diag")
-def diag():
-    return {
-        "has_key": bool(os.getenv("OPENAI_API_KEY")),
-        "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        "frontend_origin": FRONTEND_ORIGIN,
-        "debug_allow_all": DEBUG_ALLOW_ALL,
-    }, 200
 
 # ========= OpenAI =========
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -62,45 +42,51 @@ flashcard_cache = {}
 quiz_cache = {}
 
 # ========= Helpers =========
-def extract_json_array(text: str):
+def compute_hash(data: bytes):
+    return hashlib.sha256(data).hexdigest()
+
+def chunk_text(text, max_chars=4000):
+    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+
+def extract_json_array(text):
     try:
         start = text.find("[")
         end = text.rfind("]")
         if start != -1 and end != -1:
             return json.loads(text[start:end + 1])
-    except Exception as e:
-        print("JSON extraction fallback failed:", e)
+    except:
+        pass
     return []
-
-def compute_pdf_hash(file_bytes: bytes):
-    return hashlib.sha256(file_bytes).hexdigest()
-
-def chunk_text(text, max_chars=4000):
-    """Split text into safe character-based chunks."""
-    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
 
 def preflight_ok():
     return ("", 200)
 
-def log_req(tag):
-    print(f"➡️  {tag}: {request.method} {request.path}")
+# ========= Health =========
+@app.get("/")
+def health():
+    return {"status": "ok"}, 200
 
-# ========= Routes =========
+@app.get("/diag")
+def diag():
+    return {
+        "has_key": bool(os.getenv("OPENAI_API_KEY")),
+        "model": MODEL_NAME
+    }
+
+# ========= Upload / Summary =========
 @app.route("/upload", methods=["POST", "OPTIONS"])
 def upload_pdf():
     if request.method == "OPTIONS":
         return preflight_ok()
 
-    log_req("UPLOAD")
     file = request.files.get("pdf")
     if not file:
         return jsonify({"error": "No PDF uploaded"}), 400
 
     file_bytes = file.read()
-    file_hash = compute_pdf_hash(file_bytes)
+    file_hash = compute_hash(file_bytes)
 
     if file_hash in summary_cache:
-        print("✅ Using cached summary")
         return jsonify({"summary": summary_cache[file_hash]})
 
     try:
@@ -111,41 +97,37 @@ def upload_pdf():
             return jsonify({"error": "PDF text is empty"}), 400
 
         chunks = chunk_text(text)
-        partial_summaries = []
+        partials = []
 
         for i, chunk in enumerate(chunks):
             print(f"🧩 Summarizing chunk {i + 1}/{len(chunks)}")
 
-            chunk_prompt = (
-                "Summarize the following section of a document clearly and concisely. "
-                "Preserve key ideas and important details.\n\n" + chunk
-            )
-            response = client.responses.create(
+            resp = client.responses.create(
                 model=MODEL_NAME,
-                input=chunk_prompt,
+                input=(
+                    "Summarize this section of a document clearly and concisely, "
+                    "preserving important details:\n\n" + chunk
+                ),
                 max_output_tokens=400
             )
 
-            part = response.output_text.strip()
-
+            part = resp.output_text.strip()
             if part:
-                partial_summaries.append(part)
+                partials.append(part)
 
-        if not partial_summaries:
+        if not partials:
             return jsonify({"error": "Failed to generate summary"}), 500
 
-        final_prompt = (
-            "Combine the following partial summaries into one clear, cohesive final summary:\n\n"
-            + "\n\n".join(partial_summaries)
-        )
-
-        final_response = client.chat.completions.create(
+        final_resp = client.responses.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": final_prompt}],
-            max_completion_tokens=800
+            input=(
+                "Combine the following partial summaries into one clear, cohesive final summary:\n\n"
+                + "\n\n".join(partials)
+            ),
+            max_output_tokens=800
         )
 
-        summary = final_response.choices[0].message.content.strip()
+        summary = final_resp.output_text.strip()
         summary_cache[file_hash] = summary
         return jsonify({"summary": summary})
 
@@ -158,34 +140,30 @@ def generate_flashcards():
     if request.method == "OPTIONS":
         return preflight_ok()
 
-    log_req("FLASHCARDS")
     data = request.get_json(silent=True) or {}
     text = data.get("text", "")
     if not text:
         return jsonify({"error": "No input text provided"}), 400
 
-    key = hashlib.sha256(text.encode()).hexdigest()
+    key = compute_hash(text.encode())
     if key in flashcard_cache:
         return jsonify({"flashcards": flashcard_cache[key]})
 
     try:
-        prompt = (
-            "Generate 5 flashcards from the following text. "
-            "Each flashcard should be a JSON object with 'question' and 'answer'. "
-            "Return ONLY a JSON array.\n\n" + text
-        )
-
-        response = client.chat.completions.create(
+        resp = client.responses.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            max_completion_tokens=700
+            input=(
+                "Generate 5 flashcards from the following text. "
+                "Each flashcard must be a JSON object with 'question' and 'answer'. "
+                "Return ONLY a JSON array.\n\n" + text
+            ),
+            max_output_tokens=700
         )
 
-        content = response.choices[0].message.content
-        flashcards = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
-
-        flashcard_cache[key] = flashcards
-        return jsonify({"flashcards": flashcards})
+        content = resp.output_text
+        cards = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
+        flashcard_cache[key] = cards
+        return jsonify({"flashcards": cards})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -196,32 +174,28 @@ def generate_quiz():
     if request.method == "OPTIONS":
         return preflight_ok()
 
-    log_req("QUIZ")
     data = request.get_json(silent=True) or {}
     text = data.get("text", "")
     if not text:
         return jsonify({"error": "No input text provided"}), 400
 
-    key = hashlib.sha256(text.encode()).hexdigest()
+    key = compute_hash(text.encode())
     if key in quiz_cache:
         return jsonify({"quiz": quiz_cache[key]})
 
     try:
-        prompt = (
-            "Generate a 5-question multiple choice quiz from the following text. "
-            "Each question should have 'question', 'choices', and 'correct' (A/B/C/D). "
-            "Return ONLY a JSON array.\n\n" + text
-        )
-
-        response = client.chat.completions.create(
+        resp = client.responses.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            max_completion_tokens=800
+            input=(
+                "Generate a 5-question multiple choice quiz from the following text. "
+                "Each question must have 'question', 'choices', and 'correct' (A/B/C/D). "
+                "Return ONLY a JSON array.\n\n" + text
+            ),
+            max_output_tokens=800
         )
 
-        content = response.choices[0].message.content
+        content = resp.output_text
         quiz = json.loads(content) if content.strip().startswith("[") else extract_json_array(content)
-
         quiz_cache[key] = quiz
         return jsonify({"quiz": quiz})
 
