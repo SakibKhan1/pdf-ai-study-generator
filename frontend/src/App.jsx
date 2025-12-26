@@ -13,8 +13,13 @@ const BACKEND_URL = envUrl === '' ? '' : (envUrl || computedDefault);
 console.log('BACKEND_URL =', BACKEND_URL || '(relative paths via dev proxy)');
 
 
-const makeUrl = (path) => `${BACKEND_URL}${path.startsWith('/') ? path : `/${path}`}`;
-
+function makeUrl(path) {
+  if (path.startsWith("/")) {
+    return BACKEND_URL + path;
+  } else {
+    return BACKEND_URL + "/" + path;
+  }
+}
 // Small helper: fetch with timeout + JSON + nicer errors
 async function apiFetch(path, options = {}, { timeoutMs = 45000 } = {}) {
   const controller = new AbortController();
@@ -25,17 +30,19 @@ async function apiFetch(path, options = {}, { timeoutMs = 45000 } = {}) {
     const text = await res.text();
     try {
       data = text ? JSON.parse(text) : {};
-    } catch {
+    } 
+    catch {
       // Non-JSON response
       throw new Error(`Unexpected response format (${res.status}): ${text?.slice(0, 200) || 'empty'}`);
     }
     if (!res.ok) {
-      // Bubble up backend error if present
+    // Bubble up backend error if present
       const msg = data?.error || data?.message || `HTTP ${res.status}`;
       throw new Error(msg);
     }
     return data;
-  } catch (err) {
+  } 
+  catch (err) {
     if (err.name === 'AbortError') {
       throw new Error('Request timed out. PDF might be too big to process, please try again with a smaller PDF please.');
     }
