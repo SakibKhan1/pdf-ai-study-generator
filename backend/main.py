@@ -14,22 +14,18 @@ load_dotenv()
 app = Flask(__name__)
 
 # ================== CORS ==================
-DEBUG_ALLOW_ALL = os.getenv("DEBUG_ALLOW_ALL_ORIGINS", "0") == "1"
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
 
-if DEBUG_ALLOW_ALL:
-    CORS(app)
-else:
-    CORS(app, resources={
-        r"/*": {
-            "origins": [
-                FRONTEND_ORIGIN,
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-                r"^https://.*\.vercel\.app$",
-            ]
-        }
-    })
+CORS(app, resources={
+    r"/*": { 
+        "origins": [
+            FRONTEND_ORIGIN,
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ]
+    }
+})
+
 
 # ================== OpenAI ==================
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
