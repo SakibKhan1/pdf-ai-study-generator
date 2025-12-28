@@ -234,9 +234,13 @@ def generate_quiz():
         resp = client.responses.create(
             model=MODEL_NAME,
             input=(
-                "Generate a 5-question multiple choice quiz from the following text. "
-                "Each question must have 'question', 'choices', and 'correct' (A/B/C/D). "
-                "Return ONLY a JSON array.\n\n" + text
+                "Generate a 5-question multiple choice quiz from the following text.\n"
+                "Each question must be an object with:\n"
+                "- 'question': string\n"
+                "- 'choices': array of 4 plain answer strings (DO NOT include A/B/C/D or numbering)\n"
+                "- 'correct': a single letter 'A', 'B', 'C', or 'D' indicating the correct choice index\n"
+                "Return ONLY a valid JSON array. No extra text.\n\n"
+                + text
             ),
             max_output_tokens=800
         )
