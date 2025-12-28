@@ -121,7 +121,7 @@ def upload_pdf():
             return jsonify({"summary": summary})
 
         # ================== LARGE PDF PATH ==================
-        print("🐢 Large PDF detected — using parallel chunking")
+        print("Large PDF detected - using parallel chunking")
 
         chunks = chunk_text(text)
         partials = []
