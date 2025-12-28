@@ -326,7 +326,7 @@ function App() {
           <p style={{ fontSize: '1.2rem', marginBottom: '0.75rem' }}>
             PDF AI Study Generator is a tool that converts your uploaded PDFs into AI-generated summaries, flashcards, and quizzes for fast learning.
           </p>
-          <p style={{ fontSize: '0.9rem', color: '#666' }}>
+          <p style={{ fontSize: '0.9rem', color: '#662' }}>
             © 2025 Sakib Khan · Powered by OpenAI&apos;s GPT API
           </p>
         </div>
