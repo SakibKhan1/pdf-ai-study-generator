@@ -33,8 +33,8 @@ MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 client = OpenAI(api_key=OPENAI_KEY)
 
-print("🚀 Backend booted")
-print("🤖 Model:", MODEL_NAME)
+print("Backend booted")
+print("AI Model currently being used for this project:", MODEL_NAME)
 
 # ================== Caches ==================
 summary_cache = {}
