@@ -100,8 +100,8 @@ def upload_pdf():
             return jsonify({"error": "PDF text is empty"}), 400
 
         # ================== FAST PATH ==================
-        if len(text) < 25_000:
-            print("⚡ Using single-call summary")
+        if len(text) < 25000:
+            print("Using single-call summary")
 
             resp = client.responses.create(
                 model=MODEL_NAME,
@@ -115,7 +115,6 @@ def upload_pdf():
                 ),
                 max_output_tokens=300
             )
-
             summary = get_response_text(resp).strip()
             summary_cache[file_hash] = summary
             return jsonify({"summary": summary})
@@ -147,14 +146,14 @@ def upload_pdf():
 
             for future in as_completed(futures):
                 completed += 1
-                try:
+                try:    
                     result = future.result()
                     if result:
                         partials.append(result)
                 except Exception as e:
                     print("❌ Chunk failed:", e)
 
-                print(f"🧩 Completed {completed}/{total} chunks")
+                print(f"Completed {completed}/{total} chunks")
 
 
         if not partials:
@@ -238,7 +237,7 @@ def generate_quiz():
                 "Return ONLY a valid JSON array. No extra text.\n\n"
                 + text
             ),
-            max_output_tokens=800
+            max_output_tokens=700
         )
 
         content = get_response_text(resp)
